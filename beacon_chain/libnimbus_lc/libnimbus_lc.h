@@ -63,7 +63,7 @@ typedef struct ETHRandomNumber ETHRandomNumber;
  * @return `NULL` - If an error occurred.
  */
 ETH_RESULT_USE_CHECK
-ETHRandomNumber *ETHRandomNumberCreate(void);
+ETHRandomNumber *_Nullable ETHRandomNumberCreate(void);
 
 /**
  * Destroys a cryptographically secure random number generator.
@@ -94,10 +94,10 @@ typedef struct ETHConsensusConfig ETHConsensusConfig;
  *         based on the given `config.yaml` file content - If successful.
  * @return `NULL` - If the given `config.yaml` is malformed or incompatible.
  *
- * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.2/configs/README.md
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.9/configs/README.md
  */
 ETH_RESULT_USE_CHECK
-ETHConsensusConfig *ETHConsensusConfigCreateFromYaml(const char *configFileContent);
+ETHConsensusConfig *_Nullable ETHConsensusConfigCreateFromYaml(const char *configFileContent);
 
 /**
  * Destroys an Ethereum Consensus Layer network configuration.
@@ -150,13 +150,13 @@ typedef struct ETHBeaconState ETHBeaconState;
  * @return `NULL` - If the given `sszBytes` is malformed.
  *
  * @see https://github.com/ethereum/consensus-specs/blob/v1.4.0/specs/phase0/beacon-chain.md#beaconstate
- * @see https://github.com/ethereum/consensus-specs/blob/v1.4.0/specs/altair/beacon-chain.md#beaconstate
- * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.2/specs/bellatrix/beacon-chain.md#beaconstate
- * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.2/specs/capella/beacon-chain.md#beaconstate
- * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.2/configs/README.md
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.9/specs/altair/beacon-chain.md#beaconstate
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.8/specs/bellatrix/beacon-chain.md#beaconstate
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.3/specs/capella/beacon-chain.md#beaconstate
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.9/configs/README.md
  */
 ETH_RESULT_USE_CHECK
-ETHBeaconState *ETHBeaconStateCreateFromSsz(
+ETHBeaconState *_Nullable ETHBeaconStateCreateFromSsz(
     const ETHConsensusConfig *cfg,
     const char *consensusVersion,
     const void *sszBytes,
@@ -251,7 +251,7 @@ typedef struct ETHBeaconClock ETHBeaconClock;
  *         NULL if the state contained an invalid time.
  */
 ETH_RESULT_USE_CHECK
-ETHBeaconClock *ETHBeaconClockCreateFromState(
+ETHBeaconClock *_Nullable ETHBeaconClockCreateFromState(
     const ETHConsensusConfig *cfg, const ETHBeaconState *state);
 
 /**
@@ -271,7 +271,7 @@ void ETHBeaconClockDestroy(ETHBeaconClock *beaconClock);
  * @return Slot number for the current wall clock time - If genesis has occurred.
  * @return `0` - If genesis is still pending.
  *
- * @see https://github.com/ethereum/consensus-specs/blob/v1.4.0/specs/phase0/beacon-chain.md#custom-types
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.8/specs/phase0/beacon-chain.md#custom-types
  */
 ETH_RESULT_USE_CHECK
 int ETHBeaconClockGetSlot(const ETHBeaconClock *beaconClock);
@@ -325,11 +325,11 @@ typedef struct ETHLightClientStore ETHLightClientStore;
  *
  * @see https://ethereum.github.io/beacon-APIs/?urls.primaryName=v2.4.1#/Beacon/getLightClientBootstrap
  * @see https://ethereum.github.io/beacon-APIs/?urls.primaryName=v2.4.1#/Events/eventstream
- * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.2/specs/altair/light-client/light-client.md
- * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.2/specs/phase0/weak-subjectivity.md#weak-subjectivity-period
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.9/specs/altair/light-client/light-client.md
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.9/specs/phase0/weak-subjectivity.md#weak-subjectivity-period
  */
 ETH_RESULT_USE_CHECK
-ETHLightClientStore *ETHLightClientStoreCreateFromBootstrap(
+ETHLightClientStore *_Nullable ETHLightClientStoreCreateFromBootstrap(
     const ETHConsensusConfig *cfg,
     const ETHRoot *trustedBlockRoot,
     const char *mediaType,
@@ -579,7 +579,7 @@ typedef struct ETHLightClientHeader ETHLightClientHeader;
  *
  * @return Latest finalized header.
  *
- * @see https://github.com/ethereum/consensus-specs/blob/v1.4.0-beta.5/specs/capella/light-client/sync-protocol.md#modified-lightclientheader
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.9/specs/capella/light-client/sync-protocol.md#modified-lightclientheader
  */
 ETH_RESULT_USE_CHECK
 const ETHLightClientHeader *ETHLightClientStoreGetFinalizedHeader(
@@ -597,8 +597,8 @@ const ETHLightClientHeader *ETHLightClientStoreGetFinalizedHeader(
  *
  * @return Whether or not the next sync committee is currently known.
  *
- * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.2/specs/altair/light-client/sync-protocol.md#is_next_sync_committee_known
- * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.2/specs/altair/light-client/light-client.md
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.3/specs/altair/light-client/sync-protocol.md#is_next_sync_committee_known
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.9/specs/altair/light-client/light-client.md
  */
 ETH_RESULT_USE_CHECK
 bool ETHLightClientStoreIsNextSyncCommitteeKnown(const ETHLightClientStore *store);
@@ -614,7 +614,7 @@ bool ETHLightClientStoreIsNextSyncCommitteeKnown(const ETHLightClientStore *stor
  *
  * @return Latest optimistic header.
  *
- * @see https://github.com/ethereum/consensus-specs/blob/v1.4.0-beta.5/specs/capella/light-client/sync-protocol.md#modified-lightclientheader
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.9/specs/capella/light-client/sync-protocol.md#modified-lightclientheader
  */
 ETH_RESULT_USE_CHECK
 const ETHLightClientHeader *ETHLightClientStoreGetOptimisticHeader(
@@ -672,7 +672,7 @@ void ETHLightClientHeaderDestroy(ETHLightClientHeader *header);
  *
  * @return Pointer to a copy of the given header's beacon block root.
  *
- * @see https://github.com/ethereum/consensus-specs/blob/v1.4.0-beta.6/specs/phase0/beacon-chain.md#hash_tree_root
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.8/specs/phase0/beacon-chain.md#hash_tree_root
  */
 ETH_RESULT_USE_CHECK
 ETHRoot *ETHLightClientHeaderCopyBeaconRoot(
@@ -695,7 +695,7 @@ typedef struct ETHBeaconBlockHeader ETHBeaconBlockHeader;
  *
  * @return Beacon block header.
  *
- * @see https://github.com/ethereum/consensus-specs/blob/v1.4.0-beta.6/specs/phase0/beacon-chain.md#beaconblockheader
+ * @see https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.8/specs/phase0/beacon-chain.md#beaconblockheader
  */
 ETH_RESULT_USE_CHECK
 const ETHBeaconBlockHeader *ETHLightClientHeaderGetBeacon(
@@ -1040,7 +1040,7 @@ typedef struct ETHExecutionBlockHeader ETHExecutionBlockHeader;
  * @see https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbyhash
  */
 ETH_RESULT_USE_CHECK
-ETHExecutionBlockHeader *ETHExecutionBlockHeaderCreateFromJson(
+ETHExecutionBlockHeader *_Nullable ETHExecutionBlockHeaderCreateFromJson(
     const ETHRoot *executionHash,
     const char *blockHeaderJson);
 
@@ -1104,6 +1104,21 @@ const ETHWithdrawals *ETHExecutionBlockHeaderGetWithdrawals(
     const ETHExecutionBlockHeader *executionBlockHeader);
 
 /**
+ * Obtains the requests hash of a given execution block header.
+ *
+ * - The returned value is allocated in the given execution block header.
+ *   It must neither be released nor written to, and the execution block
+ *   header must not be released while the returned value is in use.
+ *
+ * @param      executionBlockHeader Execution block header.
+ *
+ * @return Execution requests hash.
+ */
+ETH_RESULT_USE_CHECK
+const ETHRoot *ETHExecutionBlockHeaderGetRequestsHash(
+    const ETHExecutionBlockHeader *executionBlockHeader);
+
+/**
  * Transaction sequence.
  */
 typedef struct ETHTransactions ETHTransactions;
@@ -1129,7 +1144,7 @@ typedef struct ETHTransactions ETHTransactions;
  * @see https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbyhash
  */
 ETH_RESULT_USE_CHECK
-ETHTransactions *ETHTransactionsCreateFromJson(
+ETHTransactions *_Nullable ETHTransactionsCreateFromJson(
     const ETHRoot *transactionsRoot,
     const char *transactionsJson);
 
@@ -1203,7 +1218,7 @@ const ETHRoot *ETHTransactionGetHash(const ETHTransaction *transaction);
  * @return Chain ID.
  */
 ETH_RESULT_USE_CHECK
-const ETHUInt256 *ETHTransactionGetChainId(const ETHTransaction *transaction);
+const uint64_t *ETHTransactionGetChainId(const ETHTransaction *transaction);
 
 /**
  * Obtains the from address of a transaction.
@@ -1373,9 +1388,9 @@ typedef struct ETHAccessTuple ETHAccessTuple;
  * Obtains an individual access tuple by sequential index
  * in a transaction access list.
  *
- * - The returned value is allocated in the given transaction access list.
- *   It must neither be released nor written to, and the transaction
- *   access list must not be released while the returned value is in use.
+ * - The returned value is allocated in the given access list.
+ *   It must neither be released nor written to, and the access list
+ *   must not be released while the returned value is in use.
  *
  * @param      accessList           Transaction access list.
  * @param      accessTupleIndex     Sequential access tuple index.
@@ -1478,6 +1493,149 @@ const ETHRoot *ETHTransactionGetBlobVersionedHash(
     int versionedHashIndex);
 
 /**
+ * Indicates whether or not a transaction has an authorization list.
+ *
+ * @param      transaction          Transaction.
+ *
+ * @return Whether or not the transaction has an authorization list.
+ */
+ETH_RESULT_USE_CHECK
+bool ETHTransactionHasAuthorizationList(const ETHTransaction *transaction);
+
+/**
+ * Transaction authorization list.
+ */
+typedef struct ETHAuthorizationList ETHAuthorizationList;
+
+/**
+ * Obtains the authorization list of a transaction.
+ *
+ * - The returned value is allocated in the given transaction.
+ *   It must neither be released nor written to, and the transaction
+ *   must not be released while the returned value is in use.
+ *
+ * @param      transaction          Transaction.
+ *
+ * @return Transaction authorization list.
+ */
+ETH_RESULT_USE_CHECK
+const ETHAuthorizationList *ETHTransactionGetAuthorizationList(const ETHTransaction *transaction);
+
+/**
+ * Indicates the total number of authorization tuples
+ * in a transaction authorization list.
+ *
+ * - Individual authorization tuples may be inspected using
+ *   `ETHAuthorizationListGet`.
+ *
+ * @param      authorizationList    Transaction authorization list.
+ *
+ * @return Number of available authorization tuples.
+ */
+ETH_RESULT_USE_CHECK
+int ETHAuthorizationListGetCount(const ETHAuthorizationList *authorizationList);
+
+/**
+ * Authorization tuple.
+ */
+typedef struct ETHAuthorization ETHAuthorization;
+
+/**
+ * Obtains an individual authorization tuple by sequential index
+ * in a transaction authorization list.
+ *
+ * - The returned value is allocated in the given authorization list.
+ *   It must neither be released nor written to, and the authorization list
+ *   must not be released while the returned value is in use.
+ *
+ * @param      authorizationList    Transaction authorization list.
+ * @param      authorizationIndex   Sequential authorization tuple index.
+ *
+ * @return Authorization tuple.
+ */
+ETH_RESULT_USE_CHECK
+const ETHAuthorization *ETHAuthorizationListGet(
+    const ETHAuthorizationList *authorizationList,
+    int authorizationIndex);
+
+/**
+ * Obtains the chain ID of an authorization tuple.
+ *
+ * - The returned value is allocated in the given authorization tuple.
+ *   It must neither be released nor written to, and the authorization tuple
+ *   must not be released while the returned value is in use.
+ *
+ * @param      authorization        Authorization tuple.
+ *
+ * @return Chain ID.
+ */
+ETH_RESULT_USE_CHECK
+const uint64_t *ETHAuthorizationGetChainId(
+    const ETHAuthorization *authorization);
+
+/**
+ * Obtains the address of an authorization tuple.
+ *
+ * - The returned value is allocated in the given authorization tuple.
+ *   It must neither be released nor written to, and the authorization tuple
+ *   must not be released while the returned value is in use.
+ *
+ * @param      authorization        Authorization tuple.
+ *
+ * @return Address.
+ */
+ETH_RESULT_USE_CHECK
+const ETHExecutionAddress *ETHAuthorizationGetAddress(
+    const ETHAuthorization *authorization);
+
+/**
+ * Obtains the nonce of an authorization tuple.
+ *
+ * - The returned value is allocated in the given authorization tuple.
+ *   It must neither be released nor written to, and the authorization tuple
+ *   must not be released while the returned value is in use.
+ *
+ * @param      authorization        Authorization tuple.
+ *
+ * @return Nonce.
+ */
+ETH_RESULT_USE_CHECK
+const uint64_t *ETHAuthorizationGetNonce(
+    const ETHAuthorization *authorization);
+
+/**
+ * Obtains the authority execution address of an authorization tuple.
+ *
+ * - The returned value is allocated in the given authorization tuple.
+ *   It must neither be released nor written to, and the authorization tuple
+ *   must not be released while the returned value is in use.
+ *
+ * @param      authorization        Authorization tuple.
+ *
+ * @return Authority execution address.
+ */
+ETH_RESULT_USE_CHECK
+const ETHExecutionAddress *ETHAuthorizationGetAuthority(
+    const ETHAuthorization *authorization);
+
+/**
+ * Obtains the signature of a authorization tuple.
+ *
+ * - The returned value is allocated in the given authorization tuple.
+ *   It must neither be released nor written to, and the authorization tuple
+ *   must not be released while the returned value is in use.
+ *
+ * @param      authorization        Authorization tuple.
+ * @param[out] numBytes             Length of buffer.
+ *
+ * @return Buffer with signature.
+ */
+ETH_RESULT_USE_CHECK
+const void *ETHAuthorizationGetSignatureBytes(
+    const ETHAuthorization *authorization,
+    int *numBytes);
+
+/**
  * Obtains the signature of a transaction.
  *
  * - The returned value is allocated in the given transaction.
@@ -1539,7 +1697,7 @@ typedef struct ETHReceipts ETHReceipts;
  * @see https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gettransactionreceipt
  */
 ETH_RESULT_USE_CHECK
-ETHReceipts *ETHReceiptsCreateFromJson(
+ETHReceipts *_Nullable ETHReceiptsCreateFromJson(
     const ETHRoot *receiptsRoot,
     const char *receiptsJson,
     const ETHTransactions *transactions);

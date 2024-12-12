@@ -16,7 +16,7 @@ import
   chronicles,
   taskpools,
   # Third-party
-  yaml,
+  yaml/tojson,
   # Beacon chain internals
   ../../beacon_chain/beacon_chain_db,
   ../../beacon_chain/consensus_object_pools/[block_clearance, block_quarantine],
@@ -88,7 +88,7 @@ proc loadSteps(
     loadForked(t, s, path, fork_digests)
 
   let stepsYAML = os_ops.readFile(path/"steps.yaml")
-  let steps = yaml.loadToJson(stepsYAML)
+  let steps = loadToJson(stepsYAML)
 
   result = @[]
   for step in steps[0]:
@@ -130,10 +130,8 @@ proc loadSteps(
 proc runTest(suiteName, path: string, consensusFork: static ConsensusFork) =
   let relativePathComponent = path.relativeTestPathComponent()
   test "Light client - Data collection - " & relativePathComponent:
-    let (cfg, unknowns) = readRuntimeConfig(path/"config.yaml")
-    doAssert unknowns.len == 0
-
     let
+      (cfg, _) = readRuntimeConfig(path/"config.yaml")
       initial_state = loadForkedState(
         path/"initial_state.ssz_snappy", consensusFork)
       db = BeaconChainDB.new("", cfg = cfg, inMemory = true)

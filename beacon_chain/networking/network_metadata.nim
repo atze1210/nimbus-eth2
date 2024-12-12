@@ -18,7 +18,7 @@ import
 
 from std/sequtils import deduplicate, filterIt, mapIt
 from std/strutils import
-  escape, parseBiggestUInt, replace, splitLines, startsWith, strip,
+  endsWith, escape, parseBiggestUInt, replace, splitLines, startsWith, strip,
   toLowerAscii
 
 # TODO(zah):
@@ -43,11 +43,10 @@ const
   incbinEnabled* = sizeof(pointer) == 8
 
 type
-  Eth1BlockHash* = web3types.BlockHash
+  Eth1BlockHash* = web3types.Hash32
 
   Eth1Network* = enum
     mainnet
-    goerli
     sepolia
     holesky
 
@@ -78,7 +77,7 @@ type
     # additional checks to ensure we are connecting to a web3 provider
     # serving data for the same network. The value can be set to `None`
     # for custom networks and testing purposes.
-    eth1Network*: Option[Eth1Network]
+    eth1Network*: Opt[Eth1Network]
     cfg*: RuntimeConfig
 
     # Parsing `enr.Records` is still not possible at compile-time
@@ -92,33 +91,51 @@ type
 func hasGenesis*(metadata: Eth2NetworkMetadata): bool =
   metadata.genesis.kind != NoGenesis
 
-proc readBootstrapNodes*(path: string): seq[string] {.raises: [IOError].} =
+proc readBootstrapNodes(path: string): seq[string] {.raises: [IOError].} =
   # Read a list of ENR values from a YAML file containing a flat list of entries
+  var res: seq[string]
   if fileExists(path):
-    splitLines(readFile(path)).
-      filterIt(it.startsWith("enr:")).
-      mapIt(it.strip())
-  else:
-    @[]
+    for line in splitLines(readFile(path)):
+      let line = line.strip()
+      if line.startsWith("enr:"):
+        res.add line
+      elif line.len == 0 or line.startsWith("#"):
+        discard
+      else:
+        when nimvm:
+          raiseAssert "Bootstrap node invalid (" & path & "): " & line
+        else:
+          warn "Ignoring invalid bootstrap node", path, bootstrapNode = line
+  res
 
-proc readBootEnr*(path: string): seq[string] {.raises: [IOError].} =
+proc readBootEnr(path: string): seq[string] {.raises: [IOError].} =
   # Read a list of ENR values from a YAML file containing a flat list of entries
+  var res: seq[string]
   if fileExists(path):
-    splitLines(readFile(path)).
-      filterIt(it.startsWith("- enr:")).
-      mapIt(it[2..^1].strip())
-  else:
-    @[]
+    for line in splitLines(readFile(path)):
+      let line = line.strip()
+      if line.startsWith("- enr:"):
+        res.add line[2 .. ^1]
+      elif line.startsWith("- \"enr:") and line.endsWith("\""):
+        res.add line[3 .. ^2]  # Gnosis Chiado `boot_enr.yaml`
+      elif line.len == 0 or line.startsWith("#"):
+        discard
+      else:
+        when nimvm:
+          raiseAssert "Bootstrap ENR invalid (" & path & "): " & line
+        else:
+          warn "Ignoring invalid bootstrap ENR", path, bootstrapEnr = line
+  res
 
 proc loadEth2NetworkMetadata*(
     path: string,
-    eth1Network = none(Eth1Network),
+    eth1Network = Opt.none(Eth1Network),
     isCompileTime = false,
-    downloadGenesisFrom = none(DownloadInfo),
-    useBakedInGenesis = none(string)
+    downloadGenesisFrom = Opt.none(DownloadInfo),
+    useBakedInGenesis = Opt.none(string)
 ): Result[Eth2NetworkMetadata, string] {.raises: [IOError, PresetFileError].} =
-  # Load data in eth2-networks format
-  # https://github.com/eth-clients/eth2-networks
+  # Load data in mainnet format
+  # https://github.com/eth-clients/mainnet
 
   try:
     let
@@ -127,7 +144,8 @@ proc loadEth2NetworkMetadata*(
       deployBlockPath = path & "/deploy_block.txt"
       depositContractBlockPath = path & "/deposit_contract_block.txt"
       depositContractBlockHashPath = path & "/deposit_contract_block_hash.txt"
-      bootstrapNodesPath = path & "/bootstrap_nodes.txt"
+      bootstrapNodesLegacyPath = path & "/bootstrap_nodes.txt"  # <= Dec 2024
+      bootstrapNodesPath = path & "/bootstrap_nodes.yaml"
       bootEnrPath = path & "/boot_enr.yaml"
       runtimeConfig = if fileExists(configPath):
         let (cfg, unknowns) = readRuntimeConfig(configPath)
@@ -179,7 +197,8 @@ proc loadEth2NetworkMetadata*(
         default(Eth2Digest)
 
       bootstrapNodes = deduplicate(
-        readBootstrapNodes(bootstrapNodesPath) &
+        readBootstrapNodes(bootstrapNodesLegacyPath) &
+        readBootEnr(bootstrapNodesPath) &
         readBootEnr(bootEnrPath))
 
     ok Eth2NetworkMetadata(
@@ -208,9 +227,9 @@ proc loadEth2NetworkMetadata*(
 
 proc loadCompileTimeNetworkMetadata(
     path: string,
-    eth1Network = none(Eth1Network),
-    useBakedInGenesis = none(string),
-    downloadGenesisFrom = none(DownloadInfo)): Eth2NetworkMetadata =
+    eth1Network = Opt.none(Eth1Network),
+    useBakedInGenesis = Opt.none(string),
+    downloadGenesisFrom = Opt.none(DownloadInfo)): Eth2NetworkMetadata =
   if fileExists(path & "/config.yaml"):
     try:
       let res = loadEth2NetworkMetadata(
@@ -255,13 +274,13 @@ when const_preset == "gnosis":
   const
     gnosisMetadata = loadCompileTimeNetworkMetadata(
       vendorDir & "/gnosis-chain-configs/mainnet",
-      none(Eth1Network),
-      useBakedInGenesis = some "gnosis")
+      Opt.none(Eth1Network),
+      useBakedInGenesis = Opt.some "gnosis")
 
     chiadoMetadata = loadCompileTimeNetworkMetadata(
       vendorDir & "/gnosis-chain-configs/chiado",
-      none(Eth1Network),
-      useBakedInGenesis = some "chiado")
+      Opt.none(Eth1Network),
+      useBakedInGenesis = Opt.some "chiado")
 
   static:
     for network in [gnosisMetadata, chiadoMetadata]:
@@ -270,7 +289,9 @@ when const_preset == "gnosis":
     for network in [gnosisMetadata, chiadoMetadata]:
       doAssert network.cfg.DENEB_FORK_EPOCH < FAR_FUTURE_EPOCH
       doAssert network.cfg.ELECTRA_FORK_EPOCH == FAR_FUTURE_EPOCH
-      static: doAssert ConsensusFork.high == ConsensusFork.Electra
+      doAssert network.cfg.FULU_FORK_EPOCH == FAR_FUTURE_EPOCH
+      doAssert ConsensusFork.high == ConsensusFork.Fulu
+
 
 elif const_preset == "mainnet":
   when incbinEnabled:
@@ -292,28 +313,28 @@ elif const_preset == "mainnet":
   else:
     const
       mainnetGenesis* = slurp(
-        vendorDir & "/eth2-networks/shared/mainnet/genesis.ssz")
+        vendorDir & "/mainnet/metadata/genesis.ssz")
 
       sepoliaGenesis* = slurp(
-        vendorDir & "/sepolia/bepolia/genesis.ssz")
+        vendorDir & "/sepolia/metadata/genesis.ssz")
 
   const
     mainnetMetadata = loadCompileTimeNetworkMetadata(
-      vendorDir & "/eth2-networks/shared/mainnet",
-      some mainnet,
-      useBakedInGenesis = some "mainnet")
+      vendorDir & "/mainnet/metadata",
+      Opt.some mainnet,
+      useBakedInGenesis = Opt.some "mainnet")
 
     holeskyMetadata = loadCompileTimeNetworkMetadata(
-      vendorDir & "/holesky/custom_config_data",
-      some holesky,
-      downloadGenesisFrom = some DownloadInfo(
+      vendorDir & "/holesky/metadata",
+      Opt.some holesky,
+      downloadGenesisFrom = Opt.some DownloadInfo(
         url: "https://github.com/status-im/nimbus-eth2/releases/download/v23.9.1/holesky-genesis.ssz.sz",
         digest: Eth2Digest.fromHex "0x0ea3f6f9515823b59c863454675fefcd1d8b4f2dbe454db166206a41fda060a0"))
 
     sepoliaMetadata = loadCompileTimeNetworkMetadata(
-      vendorDir & "/sepolia/bepolia",
-      some sepolia,
-      useBakedInGenesis = some "sepolia")
+      vendorDir & "/sepolia/metadata",
+      Opt.some sepolia,
+      useBakedInGenesis = Opt.some "sepolia")
 
   static:
     for network in [mainnetMetadata, sepoliaMetadata, holeskyMetadata]:
@@ -322,7 +343,8 @@ elif const_preset == "mainnet":
     for network in [mainnetMetadata, sepoliaMetadata, holeskyMetadata]:
       doAssert network.cfg.DENEB_FORK_EPOCH < FAR_FUTURE_EPOCH
       doAssert network.cfg.ELECTRA_FORK_EPOCH == FAR_FUTURE_EPOCH
-      static: doAssert ConsensusFork.high == ConsensusFork.Electra
+      doAssert network.cfg.FULU_FORK_EPOCH == FAR_FUTURE_EPOCH
+      doAssert ConsensusFork.high == ConsensusFork.Fulu
 
 proc getMetadataForNetwork*(networkName: string): Eth2NetworkMetadata =
   template loadRuntimeMetadata(): auto =
@@ -344,7 +366,7 @@ proc getMetadataForNetwork*(networkName: string): Eth2NetworkMetadata =
       quit 1
 
   if networkName in ["goerli", "prater"]:
-    warn "Goerli is deprecated and will stop being supported; https://blog.ethereum.org/2023/11/30/goerli-lts-update suggests migrating to Holesky or Sepolia"
+    warn "Goerli is deprecated and unsupported; https://blog.ethereum.org/2023/11/30/goerli-lts-update suggests migrating to Holesky or Sepolia"
 
   let metadata =
     when const_preset == "gnosis":

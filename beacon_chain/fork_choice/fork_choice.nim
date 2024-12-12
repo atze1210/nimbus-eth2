@@ -49,13 +49,11 @@ func compute_deltas(
 logScope: topics = "fork_choice"
 
 func init*(
-    T: type ForkChoiceBackend, checkpoints: FinalityCheckpoints,
-    version: ForkChoiceVersion): T =
-  T(proto_array: ProtoArray.init(checkpoints, version))
+    T: type ForkChoiceBackend, checkpoints: FinalityCheckpoints): T =
+  T(proto_array: ProtoArray.init(checkpoints))
 
 proc init*(
-    T: type ForkChoice, epochRef: EpochRef, blck: BlockRef,
-    version: ForkChoiceVersion): T =
+    T: type ForkChoice, epochRef: EpochRef, blck: BlockRef): T =
   ## Initialize a fork choice context for a finalized state - in the finalized
   ## state, the justified and finalized checkpoints are the same, so only one
   ## is used here
@@ -67,10 +65,8 @@ proc init*(
     backend: ForkChoiceBackend.init(
       FinalityCheckpoints(
         justified: checkpoint,
-        finalized: checkpoint),
-      version),
+        finalized: checkpoint)),
     checkpoints: Checkpoints(
-      version: version,
       justified: BalanceCheckpoint(
         checkpoint: checkpoint,
         total_active_balance: epochRef.total_active_balance,
@@ -113,7 +109,7 @@ proc update_justified(
   self.update_justified(dag, blck, justified.epoch)
   ok()
 
-# https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.2/specs/phase0/fork-choice.md#update_checkpoints
+# https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.9/specs/phase0/fork-choice.md#update_checkpoints
 proc update_checkpoints(
     self: var Checkpoints, dag: ChainDAGRef,
     checkpoints: FinalityCheckpoints): FcResult[void] =
@@ -285,7 +281,7 @@ proc process_block*(self: var ForkChoice,
 
   for attestation in blck.body.attestations:
     if attestation.data.beacon_block_root in self.backend:
-      for validator_index in dag.get_attesting_indices(attestation):
+      for validator_index in dag.get_attesting_indices(attestation, true):
         self.backend.process_attestation(
           validator_index,
           attestation.data.beacon_block_root,
@@ -377,7 +373,7 @@ proc get_head*(self: var ForkChoice,
     self.checkpoints.justified.balances,
     self.checkpoints.proposer_boost_root)
 
-# https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.2/fork_choice/safe-block.md#get_safe_beacon_block_root
+# https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.9/fork_choice/safe-block.md#get_safe_beacon_block_root
 func get_safe_beacon_block_root*(self: ForkChoice): Eth2Digest =
   # Use most recent justified block as a stopgap
   self.checkpoints.justified.checkpoint.root
@@ -502,8 +498,8 @@ when isMainModule:
     for i in 0 ..< validator_count:
       indices.add fakeHash(i), i
       votes.add default(VoteTracker)
-      old_balances.add 0
-      new_balances.add 0
+      old_balances.add 0.Gwei
+      new_balances.add 0.Gwei
 
     let err = deltas.compute_deltas(
       indices, indices_offset = 0, votes, old_balances, new_balances
@@ -773,7 +769,7 @@ when isMainModule:
     indices.add fakeHash(1), 0
     indices.add fakeHash(2), 1
 
-    # 1 validator at the start, 2 at the end
+    # 2 validator at the start, 1 at the end
     var deltas = newSeqUninitialized[Delta](2)
     let old_balances = @[Balance, Balance]
     let new_balances = @[Balance]

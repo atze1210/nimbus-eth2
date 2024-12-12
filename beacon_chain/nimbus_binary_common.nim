@@ -279,6 +279,11 @@ proc sleepAsync*(t: TimeDiff): Future[void] =
   sleepAsync(nanoseconds(
     if t.nanoseconds < 0: 0'i64 else: t.nanoseconds))
 
+proc sleepAsync2*(t: TimeDiff): Future[void] {.
+     async: (raises: [CancelledError], raw: true).} =
+  sleepAsync(nanoseconds(
+    if t.nanoseconds < 0: 0'i64 else: t.nanoseconds))
+
 proc runSlotLoop*[T](node: T, startTime: BeaconTime,
                      slotProc: SlotStartProc[T]) {.async.} =
   var
@@ -357,6 +362,7 @@ proc init*(T: type RestServerRef,
            port: Port,
            allowedOrigin: Option[string],
            validateFn: PatternCallback,
+           ident: string,
            config: AnyConf): T =
   let
     address = initTAddress(ip, port)
@@ -375,6 +381,7 @@ proc init*(T: type RestServerRef,
 
   let res = RestServerRef.new(RestRouter.init(validateFn, allowedOrigin),
                               address, serverFlags = serverFlags,
+                              serverIdent = ident,
                               httpHeadersTimeout = headersTimeout,
                               maxHeadersSize = maxHeadersSize,
                               maxRequestBodySize = maxRequestBodySize,
@@ -428,11 +435,13 @@ proc initKeymanagerServer*(
         RestServerRef.init(config.keymanagerAddress, config.keymanagerPort,
                            config.keymanagerAllowedOrigin,
                            validateKeymanagerApiQueries,
+                           nimbusAgentStr,
                            config)
     else:
       RestServerRef.init(config.keymanagerAddress, config.keymanagerPort,
                          config.keymanagerAllowedOrigin,
                          validateKeymanagerApiQueries,
+                         nimbusAgentStr,
                          config)
   else:
     nil

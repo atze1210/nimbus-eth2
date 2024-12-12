@@ -14,7 +14,7 @@ import
   # Status libraries
   stew/byteutils,
   # Third-party
-  yaml,
+  yaml, yaml/tojson,
   # Beacon chain internals
   ../../beacon_chain/spec/[forks, light_client_sync],
   # Test utilities
@@ -59,7 +59,7 @@ proc loadSteps(
 ): seq[TestStep] {.raises: [
     KeyError, ValueError, YamlConstructionError, YamlParserError].} =
   let stepsYAML = os_ops.readFile(path/"steps.yaml")
-  let steps = yaml.loadToJson(stepsYAML)
+  let steps = loadToJson(stepsYAML)
 
   result = @[]
   for step in steps[0]:
@@ -96,7 +96,7 @@ proc loadSteps(
             .expect("Unknown update fork " & $update_fork_digest)
         update_filename = s["update"].getStr()
 
-      var update {.noinit.}: ForkedLightClientUpdate
+      var update: ForkedLightClientUpdate
       withLcDataFork(lcDataForkAtConsensusFork(update_consensus_fork)):
         when lcDataFork > LightClientDataFork.None:
           update = ForkedLightClientUpdate.init(parseTest(
@@ -133,11 +133,6 @@ proc runTest(suiteName, path: string) =
     proc loadTestMeta(): (RuntimeConfig, TestMeta) {.raises: [
         Exception, IOError, PresetFileError, PresetIncompatibleError].} =
       let (cfg, _) = readRuntimeConfig(path/"config.yaml")
-
-      when false:
-        # TODO evaluate whether this is useful and if so, fix it
-        # Unhandled defect: nimbus-eth2/tests/consensus_spec/test_fixture_light_client_sync.nim(131, 16) `unknowns.len == 0` Unknown config constants: @["MAXIMUM_GOSSIP_CLOCK_DISPARITY", "ATTESTATION_PROPAGATION_SLOT_RANGE", "MAX_REQUEST_BLOCKS", "SUBNETS_PER_NODE", "TTFB_TIMEOUT", "MIN_EPOCHS_FOR_BLOCK_REQUESTS", "MESSAGE_DOMAIN_VALID_SNAPPY", "ATTESTATION_SUBNET_EXTRA_BITS", "MAX_CHUNK_SIZE", "EPOCHS_PER_SUBNET_SUBSCRIPTION", "GOSSIP_MAX_SIZE", "ATTESTATION_SUBNET_PREFIX_BITS", "MESSAGE_DOMAIN_INVALID_SNAPPY", "RESP_TIMEOUT"] [AssertionDefect]
-        doAssert unknowns.len == 0, "Unknown config constants: " & $unknowns
 
       type TestMetaYaml {.sparse.} = object
         genesis_validators_root: string
@@ -180,7 +175,7 @@ proc runTest(suiteName, path: string) =
       let bootstrap_consensus_fork =
         meta.fork_digests.consensusForkForDigest(meta.bootstrap_fork_digest)
           .expect("Unknown bootstrap fork " & $meta.bootstrap_fork_digest)
-      var bootstrap {.noinit.}: ForkedLightClientBootstrap
+      var bootstrap: ForkedLightClientBootstrap
       withLcDataFork(lcDataForkAtConsensusFork(bootstrap_consensus_fork)):
         when lcDataFork > LightClientDataFork.None:
           bootstrap = ForkedLightClientBootstrap.init(parseTest(
@@ -196,7 +191,7 @@ proc runTest(suiteName, path: string) =
       let store_consensus_fork =
         meta.fork_digests.consensusForkForDigest(meta.store_fork_digest)
           .expect("Unknown store fork " & $meta.store_fork_digest)
-      var store {.noinit.}: ForkedLightClientStore
+      var store: ForkedLightClientStore
       withLcDataFork(lcDataForkAtConsensusFork(store_consensus_fork)):
         when lcDataFork > LightClientDataFork.None:
           bootstrap[].migrateToDataFork(lcDataFork)

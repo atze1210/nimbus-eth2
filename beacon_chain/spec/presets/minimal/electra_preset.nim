@@ -20,7 +20,7 @@ const
   # State list lengths
   # ---------------------------------------------------------------
   # `uint64(2**27)` (= 134,217,728)
-  PENDING_BALANCE_DEPOSITS_LIMIT*: uint64 = 134217728
+  PENDING_DEPOSITS_LIMIT*: uint64 = 134217728
   # customized] `uint64(2**6)` (= 64)
   PENDING_PARTIAL_WITHDRAWALS_LIMIT*: uint64 = 64
   # [customized] `uint64(2**6)` (= 64)
@@ -40,16 +40,21 @@ const
   # `uint64(2**3)` (= 8)
   MAX_ATTESTATIONS_ELECTRA*: uint64 = 8
   # `uint64(2**0)` (= 1)
-  MAX_CONSOLIDATIONS*: uint64 = 1
+  MAX_CONSOLIDATION_REQUESTS_PER_PAYLOAD*: uint64 = 1
 
   # Execution
   # ---------------------------------------------------------------
   # [customized]
-  MAX_DEPOSIT_RECEIPTS_PER_PAYLOAD* = 4
+  MAX_DEPOSIT_REQUESTS_PER_PAYLOAD* = 4
   # [customized] 2**1 (= 2) withdrawal requests
   MAX_WITHDRAWAL_REQUESTS_PER_PAYLOAD* = 2
 
   # Withdrawals processing
   # ---------------------------------------------------------------
   # 2**0 ( = 1) pending withdrawals
-  MAX_PENDING_PARTIALS_PER_WITHDRAWALS_SWEEP* = 1
+  MAX_PENDING_PARTIALS_PER_WITHDRAWALS_SWEEP* = 2
+
+  # Pending deposits processing
+  # ---------------------------------------------------------------
+  # 2**4 ( = 4) pending deposits
+  MAX_PENDING_DEPOSITS_PER_EPOCH* = 16

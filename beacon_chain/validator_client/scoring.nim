@@ -10,6 +10,7 @@
 import std/strutils
 import ssz_serialization/[types, bitseqs]
 import stew/endians2
+import stint
 import nimcrypto/hash
 import "."/common
 
@@ -24,6 +25,9 @@ const
 func perfectScore*(score: float64): bool =
   score == Inf
 
+func perfectScore*(score: UInt256): bool =
+  score == high(UInt256)
+
 proc shortScore*(score: float64): string =
   if score == Inf:
     "<perfect>"
@@ -31,6 +35,9 @@ proc shortScore*(score: float64): string =
     "<bad>"
   else:
     formatFloat(score, ffDecimal, 4)
+
+proc shortScore*(score: UInt256): string =
+  $score
 
 func getLexicographicScore(digest: Eth2Digest): float64 =
   # We calculate score on first 8 bytes of digest.
@@ -95,6 +102,33 @@ proc getAggregatedAttestationDataScore*(
         block_slot = adata.data.data.slot, committee_size = size,
         ones_count = ones, score = shortScore(res)
   res
+
+proc getAggregatedAttestationDataScore*(
+       adata: GetAggregatedAttestationV2Response
+     ): float64 =
+  # This procedure returns score value in range [0.0000, 1.0000) and `Inf`.
+  # It returns perfect score when all the bits was set to `1`, but this could
+  # provide wrong expectation for some edge cases (when different attestations
+  # has different committee sizes), but currently this is the only viable way
+  # to return perfect score.
+  withAttestation(adata):
+    const MaxLength = int(MAX_VALIDATORS_PER_COMMITTEE)
+    doAssert(len(forkyAttestation.aggregation_bits) <= MaxLength)
+    let
+      size = len(forkyAttestation.aggregation_bits)
+      ones = countOnes(forkyAttestation.aggregation_bits)
+      res =
+        if ones == size:
+          # We consider score perfect, when all bits was set to 1.
+          Inf
+        else:
+          float64(ones) / float64(size)
+
+    debug "Aggregated attestation score",
+          attestation_data = shortLog(forkyAttestation.data),
+          block_slot = forkyAttestation.data.slot, committee_size = size,
+          ones_count = ones, score = shortScore(res)
+    res
 
 proc getSyncCommitteeContributionDataScore*(
        cdata: ProduceSyncCommitteeContributionResponse
@@ -182,4 +216,29 @@ proc getUniqueVotes*(attestations: openArray[phase0.Attestation]): int =
                   DefaultCommitteeBitsArray).
           processVotes(attestation)
     res += count
+  res
+
+proc getProduceBlockResponseV3Score*(blck: ProduceBlockResponseV3): UInt256 =
+  let (res, cv, ev) =
+    block:
+      var score256 = UInt256.zero
+      let
+        cvalue =
+          if blck.consensusValue.isSome():
+            let value = blck.consensusValue.get()
+            score256 = score256 + value
+            $value
+          else:
+            "<missing>"
+        evalue =
+          if blck.executionValue.isSome():
+            let value = blck.executionValue.get()
+            score256 = score256 + value
+            $value
+          else:
+            "<missing>"
+      (score256, cvalue, evalue)
+
+  debug "Block score", blck = shortLog(blck), consensus_value = cv,
+                       execution_value = ev, score = shortScore(res)
   res

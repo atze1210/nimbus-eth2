@@ -134,7 +134,7 @@ cli do(validatorsDir: string, secretsDir: string,
               headBlockHash = payload.block_hash,
               safeBlockHash = payload.block_hash,
               finalizedBlockHash = ZERO_HASH,
-              payloadAttributes = none(consensusFork.PayloadAttributes))
+              payloadAttributes = Opt.none(consensusFork.PayloadAttributes))
             if status != PayloadExecutionStatus.valid:
               continue
 
@@ -256,7 +256,7 @@ cli do(validatorsDir: string, secretsDir: string,
                   when consensusFork >= ConsensusFork.Capella:
                     get_expected_withdrawals(forkyState.data)
                   else:
-                    newSeq[Withdrawal]()
+                    newSeq[capella.Withdrawal]()
 
               var pl: consensusFork.ExecutionPayloadForSigning
               while true:
@@ -285,10 +285,8 @@ cli do(validatorsDir: string, secretsDir: string,
             randao_reveal,
             forkyState.data.eth1_data,
             graffitiValue,
-            when typeof(payload).kind == ConsensusFork.Electra:
-              block:
-                debugRaiseAssert "wss_sim electra aggregates"
-                default(seq[electra.Attestation])
+            when typeof(payload).kind >= ConsensusFork.Electra:
+              default(seq[electra.Attestation])
             else:
               blockAggregates,
             @[],

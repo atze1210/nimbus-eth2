@@ -19,9 +19,7 @@
 let
   inherit (pkgs) stdenv lib writeScriptBin callPackage;
 
-  nimble = callPackage ./nimble.nix {};
-  csources = callPackage ./csources.nix {};
-  revision = lib.substring 0 8 (src.rev or "dirty");
+  revision = lib.substring 0 8 (src.rev or "unknown");
 in stdenv.mkDerivation rec {
   pname = "nimbus-eth2";
   version = "${callPackage ./version.nix {}}-${revision}";
@@ -60,10 +58,14 @@ in stdenv.mkDerivation rec {
   preBuild = ''
     pushd vendor/nimbus-build-system/vendor/Nim
     mkdir dist
-    cp -r ${nimble} dist/nimble
-    cp -r ${csources} csources_v1
-    chmod 777 -R dist/nimble csources_v1
-    sed -i 's/isGitRepo(destDir)/false/' tools/deps.nim
+    cp -r ${callPackage ./nimble.nix {}}    dist/nimble
+    chmod 777 -R dist/nimble
+    mkdir -p dist/nimble/dist
+    cp -r ${callPackage ./sat.nix {}}       dist/nimble/dist/sat
+    cp -r ${callPackage ./checksums.nix {}} dist/checksums  # need both
+    cp -r ${callPackage ./checksums.nix {}} dist/nimble/dist/checksums
+    cp -r ${callPackage ./csources.nix {}}  csources_v2
+    chmod 777 -R dist/nimble csources_v2
     popd
   '';
 

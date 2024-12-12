@@ -34,7 +34,11 @@ type
     # in case of chain reorgs around the upgrade.
     onUpgradeToDeneb*: LogProc
 
-# Created by http://beatscribe.com/ (beatscribe#1008 on Discord)
+    # Gets displayed on upgrade to Electra. May be displayed multiple times
+    # in case of chain reorgs around the upgrade.
+    onUpgradeToElectra*: LogProc
+
+# Created by https://beatscribe.com (beatscribe#1008 on Discord)
 # These need to be the main body of the log not to be reformatted or escaped.
 
 proc bellatrixMono*()  = notice "\n" & staticRead("bellatrix" / "mono.txt")
@@ -47,3 +51,7 @@ proc capellaBlink*() = notice "\n" & staticRead("capella" / "blink.ans")
 
 proc denebMono*()  = notice "\n" & staticRead("deneb" / "mono.txt")
 proc denebColor*() = notice "\n" & staticRead("deneb" / "color.ans")
+
+proc electraMono*()  = notice "\n" & staticRead("electra" / "mono.txt")
+proc electraColor*() = notice "\n" & staticRead("electra" / "color.ans")
+proc electraBlink*() = notice "\n" & staticRead("electra" / "blink.ans")

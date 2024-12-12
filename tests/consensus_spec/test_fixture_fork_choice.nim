@@ -10,7 +10,7 @@
 
 import
   # Status libraries
-  stew/[byteutils, results], chronicles,
+  stew/byteutils, chronicles,
   taskpools,
   # Internals
   ../../beacon_chain/spec/[helpers, forks, state_transition_block],
@@ -19,7 +19,7 @@ import
   ../../beacon_chain/consensus_object_pools/[
     blockchain_dag, block_clearance, block_quarantine, spec_cache],
   # Third-party
-  yaml,
+  yaml/tojson,
   # Test
   ../testutil, ../testdbutil,
   ./fixtures_utils, ./os_ops
@@ -79,10 +79,6 @@ proc initialLoad(
       path/"anchor_state.ssz_snappy",
       StateType.kind)
 
-    blck = parseTest(
-      path/"anchor_block.ssz_snappy",
-      SSZ, BlockType)
-
   ChainDAGRef.preInit(db, forkedState[])
 
   let
@@ -90,8 +86,7 @@ proc initialLoad(
     dag = ChainDAGRef.init(
       forkedState[].kind.genesisTestRuntimeConfig, db, validatorMonitor, {})
     fkChoice = newClone(ForkChoice.init(
-      dag.getFinalizedEpochRef(), dag.finalizedHead.blck,
-      ForkChoiceVersion.Pr3431))
+      dag.getFinalizedEpochRef(), dag.finalizedHead.blck))
 
   (dag, fkChoice)
 
@@ -102,7 +97,7 @@ proc loadOps(
     IOError, KeyError, UnconsumedInput, ValueError,
     YamlConstructionError, YamlParserError].} =
   let stepsYAML = os_ops.readFile(path/"steps.yaml")
-  let steps = yaml.loadToJson(stepsYAML)
+  let steps = loadToJson(stepsYAML)
 
   result = @[]
   for step in steps[0]:
@@ -136,7 +131,8 @@ proc loadOps(
                   blobs: distinctBase(parseTest(
                     path/(step["blobs"].getStr()) & ".ssz_snappy",
                     SSZ, List[KzgBlob, Limit MAX_BLOBS_PER_BLOCK])),
-                  proofs: step["proofs"].mapIt(KzgProof.fromHex(it.getStr())))
+                  proofs: step["proofs"].mapIt(
+                    KzgProof(bytes: fromHex(array[48, byte], it.getStr()))))
               else:
                 Opt.none(BlobData)
             else:
@@ -200,7 +196,8 @@ proc stepOnBlock(
     state,
     dag.getBlockIdAtSlot(time.slotOrZero).expect("block exists"),
     save = false,
-    stateCache
+    stateCache,
+    dag.updateFlags
   )
 
   # 3. Add block to DAG

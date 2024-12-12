@@ -32,13 +32,13 @@ macro copyFields*(
     dst: untyped, src: untyped, fieldNames: static[seq[string]]): untyped =
   result = newStmtList()
   for name in fieldNames:
-    debugRaiseAssert "deposit_receipts_root and exits_root are not currently filled in anywhere properly, so blinded electra proposals will fail"
     if name notin [
         # These fields are the ones which vary between the blinded and
         # unblinded objects, and can't simply be copied.
         "transactions_root", "execution_payload",
         "execution_payload_header", "body", "withdrawals_root",
-        "deposit_receipts_root", "withdrawal_requests_root"]:
+        "deposit_requests_root", "withdrawal_requests_root",
+        "consolidation_requests_root"]:
       # TODO use stew/assign2
       result.add newAssignment(
         newDotExpr(dst, ident(name)), newDotExpr(src, ident(name)))
@@ -47,7 +47,8 @@ proc unblindAndRouteBlockMEV*(
     node: BeaconNode, payloadBuilderRestClient: RestClientRef,
     blindedBlock:
       deneb_mev.SignedBlindedBeaconBlock |
-      electra_mev.SignedBlindedBeaconBlock):
+      electra_mev.SignedBlindedBeaconBlock |
+      fulu_mev.SignedBlindedBeaconBlock):
     Future[Result[Opt[BlockRef], string]] {.async: (raises: [CancelledError]).} =
   const consensusFork = typeof(blindedBlock).kind
 
@@ -91,6 +92,9 @@ proc unblindAndRouteBlockMEV*(
   elif blindedBlock is electra_mev.SignedBlindedBeaconBlock:
     let res = decodeBytes(
       SubmitBlindedBlockResponseElectra, response.data, response.contentType)
+  elif blindedBlock is fulu_mev.SignedBlindedBeaconBlock:
+    let res = decodeBytes(
+      SubmitBlindedBlockResponseFulu, response.data, response.contentType)
   else:
     static: doAssert false
 
@@ -127,8 +131,8 @@ proc unblindAndRouteBlockMEV*(
       if blindedBlock.message.body.blob_kzg_commitments !=
           bundle.data.blobs_bundle.commitments:
         return err("unblinded blobs bundle has unexpected commitments")
-      let ok = verifyProofs(
-          asSeq blobs_bundle.blobs,
+      let ok = verifyBlobKzgProofBatch(
+          blobs_bundle.blobs.mapIt(KzgBlob(bytes: it)),
           asSeq blobs_bundle.commitments,
           asSeq blobs_bundle.proofs).valueOr:
         return err("unblinded blobs bundle fails verification")
@@ -143,7 +147,8 @@ proc unblindAndRouteBlockMEV*(
     blck = shortLog(signedBlock)
 
   let newBlockRef =
-    (await node.router.routeSignedBeaconBlock(signedBlock, blobsOpt)).valueOr:
+    (await node.router.routeSignedBeaconBlock(
+      signedBlock, blobsOpt, checkValidator = false)).valueOr:
       # submitBlindedBlock has run, so don't allow fallback to run
       return err("routeSignedBeaconBlock error") # Errors logged in router
 

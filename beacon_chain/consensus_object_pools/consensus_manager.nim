@@ -15,6 +15,7 @@ import
   ../beacon_clock,
   ./common_tools
 
+from ../el/engine_api_conversions import asBlockHash
 from ../spec/beaconstate import
   get_expected_withdrawals, has_eth1_withdrawal_credential
 from ../spec/datatypes/capella import Withdrawal
@@ -184,7 +185,7 @@ proc updateExecutionClientHead*(
       headBlockHash = headExecutionBlockHash,
       safeBlockHash = newHead.safeExecutionBlockHash,
       finalizedBlockHash = newHead.finalizedExecutionBlockHash,
-      payloadAttributes = none attributes)
+      payloadAttributes = Opt.none attributes)
 
   # Can't use dag.head here because it hasn't been updated yet
   let
@@ -374,10 +375,11 @@ proc runProposalForkchoiceUpdated*(
       let (status, _) = await self.elManager.forkchoiceUpdated(
         headBlockHash, safeBlockHash,
         beaconHead.finalizedExecutionBlockHash,
-        payloadAttributes = some fcPayloadAttributes)
+        payloadAttributes = Opt.some fcPayloadAttributes)
       debug "Fork-choice updated for proposal", status
 
-    static: doAssert high(ConsensusFork) == ConsensusFork.Electra
+    static: doAssert high(ConsensusFork) == ConsensusFork.Fulu
+    debugFuluComment "Will Fulu need fcuV4? Or there shall be a new fcuV introduced in Fulu? We don't know"
     when consensusFork >= ConsensusFork.Deneb:
       # https://github.com/ethereum/execution-apis/blob/90a46e9137c89d58e818e62fa33a0347bba50085/src/engine/prague.md
       # does not define any new forkchoiceUpdated, so reuse V3 from Dencun
@@ -387,7 +389,7 @@ proc runProposalForkchoiceUpdated*(
         suggestedFeeRecipient: feeRecipient,
         withdrawals:
           toEngineWithdrawals get_expected_withdrawals(forkyState.data),
-        parentBeaconBlockRoot: beaconHead.blck.bid.root.asBlockHash))
+        parentBeaconBlockRoot: beaconHead.blck.bid.root.to(Hash32)))
     elif consensusFork >= ConsensusFork.Capella:
       callForkchoiceUpdated(PayloadAttributesV2(
         timestamp: Quantity timestamp,

@@ -8,7 +8,7 @@
 {.push raises: [].}
 
 # Electra preset - Electra
-# https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.0/presets/mainnet/electra.yaml
+# https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.9/presets/mainnet/electra.yaml
 const
   # Gwei values
   # ---------------------------------------------------------------
@@ -20,7 +20,7 @@ const
   # State list lengths
   # ---------------------------------------------------------------
   # `uint64(2**27)` (= 134,217,728)
-  PENDING_BALANCE_DEPOSITS_LIMIT*: uint64 = 134217728
+  PENDING_DEPOSITS_LIMIT*: uint64 = 134217728
   # `uint64(2**27)` (= 134,217,728)
   PENDING_PARTIAL_WITHDRAWALS_LIMIT*: uint64 = 134217728
   # `uint64(2**18)` (= 262,144)
@@ -40,12 +40,12 @@ const
   # `uint64(2**3)` (= 8)
   MAX_ATTESTATIONS_ELECTRA*: uint64 = 8
   # `uint64(2**0)` (= 1)
-  MAX_CONSOLIDATIONS*: uint64 = 1
+  MAX_CONSOLIDATION_REQUESTS_PER_PAYLOAD*: uint64 = 1
 
   # Execution
   # ---------------------------------------------------------------
-  # 2**13 (= 8192) receipts
-  MAX_DEPOSIT_RECEIPTS_PER_PAYLOAD* = 8192
+  # 2**13 (= 8192) deposit requests
+  MAX_DEPOSIT_REQUESTS_PER_PAYLOAD* = 8192
   # 2**4 (= 16) withdrawal requests
   MAX_WITHDRAWAL_REQUESTS_PER_PAYLOAD* = 16
 
@@ -53,3 +53,8 @@ const
   # ---------------------------------------------------------------
   # 2**3 ( = 8) pending withdrawals
   MAX_PENDING_PARTIALS_PER_WITHDRAWALS_SWEEP* = 8
+
+  # Pending deposits processing
+  # ---------------------------------------------------------------
+  # 2**4 ( = 4) pending deposits
+  MAX_PENDING_DEPOSITS_PER_EPOCH* = 16

@@ -9,10 +9,9 @@
 
 import
   std/tables,
-  stew/results,
-  chronicles, chronos, metrics, taskpools,
+  chronicles, chronos, metrics,
+  taskpools,
   ../spec/[helpers, forks],
-  ../spec/datatypes/[altair, phase0, deneb],
   ../consensus_object_pools/[
     blob_quarantine, block_clearance, block_quarantine, blockchain_dag,
     attestation_pool, light_client_pool, sync_committee_msg_pool,
@@ -51,10 +50,6 @@ declareCounter beacon_attester_slashings_received,
   "Number of valid attester slashings processed by this node"
 declareCounter beacon_attester_slashings_dropped,
   "Number of invalid attester slashings dropped by this node", labels = ["reason"]
-declareCounter bls_to_execution_change_received,
-  "Number of valid BLS to execution changes processed by this node"
-declareCounter bls_to_execution_change_dropped,
-  "Number of invalid BLS to execution changes dropped by this node", labels = ["reason"]
 declareCounter beacon_proposer_slashings_received,
   "Number of valid proposer slashings processed by this node"
 declareCounter beacon_proposer_slashings_dropped,
@@ -122,7 +117,7 @@ type
     # ----------------------------------------------------------------
     dag*: ChainDAGRef
     attestationPool*: ref AttestationPool
-    validatorPool: ref ValidatorPool
+    validatorPool*: ref ValidatorPool
     syncCommitteeMsgPool: ref SyncCommitteeMsgPool
     lightClientPool: ref LightClientPool
 
@@ -338,11 +333,12 @@ proc setupDoppelgangerDetection*(self: var Eth2Processor, slot: Slot) =
       epoch = slot.epoch,
       broadcast_epoch = self.doppelgangerDetection.broadcastStartEpoch
 
-proc clearDoppelgangerProtection*(self: var Eth2Processor) =
+func clearDoppelgangerProtection*(self: var Eth2Processor) =
   self.doppelgangerDetection.broadcastStartEpoch = FAR_FUTURE_EPOCH
 
 proc checkForPotentialDoppelganger(
-    self: var Eth2Processor, attestation: phase0.Attestation,
+    self: var Eth2Processor,
+    attestation: phase0.Attestation | electra.Attestation,
     attesterIndices: openArray[ValidatorIndex]) =
   # Only check for attestations after node launch. There might be one slot of
   # overlap in quick intra-slot restarts so trade off a few true negatives in
@@ -364,8 +360,9 @@ proc checkForPotentialDoppelganger(
 
 proc processAttestation*(
     self: ref Eth2Processor, src: MsgSource,
-    attestation: phase0.Attestation, subnet_id: SubnetId,
-    checkSignature: bool = true): Future[ValidationRes] {.async: (raises: [CancelledError]).} =
+    attestation: phase0.Attestation | electra.Attestation, subnet_id: SubnetId,
+    checkSignature, checkValidator: bool
+): Future[ValidationRes] {.async: (raises: [CancelledError]).} =
   var wallTime = self.getCurrentBeaconTime()
   let (afterGenesis, wallSlot) = wallTime.toSlot()
 
@@ -392,19 +389,26 @@ proc processAttestation*(
 
     let (attester_index, sig) = v.get()
 
-    self[].checkForPotentialDoppelganger(attestation, [attester_index])
+    if checkValidator and (attester_index in self.validatorPool[]):
+      warn "A validator client has attempted to send an attestation from " &
+           "validator that is also managed by the beacon node",
+           validator_index = attester_index
+      errReject("An attestation could not be sent from a validator that is " &
+                "also managed by the beacon node")
+    else:
+      self[].checkForPotentialDoppelganger(attestation, [attester_index])
 
-    trace "Attestation validated"
-    self.attestationPool[].addAttestation(
-      attestation, [attester_index], sig, wallTime)
+      trace "Attestation validated"
+      self.attestationPool[].addAttestation(
+        attestation, [attester_index], sig, wallTime)
 
-    self.validatorMonitor[].registerAttestation(
-      src, wallTime, attestation, attester_index)
+      self.validatorMonitor[].registerAttestation(
+        src, wallTime, attestation, attester_index)
 
-    beacon_attestations_received.inc()
-    beacon_attestation_delay.observe(delay.toFloatSeconds())
+      beacon_attestations_received.inc()
+      beacon_attestation_delay.observe(delay.toFloatSeconds())
 
-    ok()
+      ok()
   else:
     debug "Dropping attestation", reason = $v.error
     beacon_attestations_dropped.inc(1, [$v.error[0]])
@@ -412,8 +416,10 @@ proc processAttestation*(
 
 proc processSignedAggregateAndProof*(
     self: ref Eth2Processor, src: MsgSource,
-    signedAggregateAndProof: SignedAggregateAndProof,
-    checkSignature = true, checkCover = true): Future[ValidationRes] {.async: (raises: [CancelledError]).} =
+    signedAggregateAndProof:
+      phase0.SignedAggregateAndProof | electra.SignedAggregateAndProof,
+    checkSignature = true, checkCover = true): Future[ValidationRes]
+    {.async: (raises: [CancelledError]).} =
   var wallTime = self.getCurrentBeaconTime()
   let (afterGenesis, wallSlot) = wallTime.toSlot()
 
@@ -493,7 +499,8 @@ proc processBlsToExecutionChange*(
 
 proc processAttesterSlashing*(
     self: var Eth2Processor, src: MsgSource,
-    attesterSlashing: phase0.AttesterSlashing): ValidationRes =
+    attesterSlashing: phase0.AttesterSlashing | electra.AttesterSlashing):
+    ValidationRes =
   logScope:
     attesterSlashing = shortLog(attesterSlashing)
 
@@ -610,7 +617,8 @@ proc processSyncCommitteeMessage*(
 proc processSignedContributionAndProof*(
     self: ref Eth2Processor, src: MsgSource,
     contributionAndProof: SignedContributionAndProof,
-    checkSignature: bool = true): Future[Result[void, ValidationError]] {.async: (raises: [CancelledError]).} =
+    checkSignature: bool = true):
+    Future[Result[void, ValidationError]] {.async: (raises: [CancelledError]).} =
   let
     wallTime = self.getCurrentBeaconTime()
     wallSlot = wallTime.slotOrZero()

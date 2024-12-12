@@ -8,7 +8,7 @@
 {.push raises: [].}
 
 import std/sequtils
-import chronicles
+import chronicles, metrics
 import ".."/beacon_node,
        ".."/spec/forks,
        "."/[rest_utils, state_ttl_cache]
@@ -21,15 +21,15 @@ logScope: topics = "rest_debug"
 
 proc installDebugApiHandlers*(router: var RestRouter, node: BeaconNode) =
   # https://ethereum.github.io/beacon-APIs/#/Debug/getState
-  router.api2(MethodGet,
-              "/eth/v1/debug/beacon/states/{state_id}") do (
+  router.api2(MethodGet, "/eth/v1/debug/beacon/states/{state_id}") do (
     state_id: StateIdent) -> RestApiResponse:
     RestApiResponse.jsonError(
       Http410, DeprecatedRemovalBeaconBlocksDebugStateV1)
 
   # https://ethereum.github.io/beacon-APIs/#/Debug/getStateV2
-  router.api2(MethodGet,
-              "/eth/v2/debug/beacon/states/{state_id}") do (
+  router.metricsApi2(
+    MethodGet, "/eth/v2/debug/beacon/states/{state_id}",
+    {RestServerMetricsType.Status, Response}) do (
     state_id: StateIdent) -> RestApiResponse:
     let bslot =
       block:
@@ -90,8 +90,7 @@ proc installDebugApiHandlers*(router: var RestRouter, node: BeaconNode) =
     var response = GetForkChoiceResponse(
       justified_checkpoint: forkChoice.checkpoints.justified.checkpoint,
       finalized_checkpoint: forkChoice.checkpoints.finalized,
-      extra_data: RestExtraData(
-        version: some($forkChoice.backend.proto_array.version)))
+      extra_data: RestExtraData())
 
     for item in forkChoice.backend.proto_array:
       let

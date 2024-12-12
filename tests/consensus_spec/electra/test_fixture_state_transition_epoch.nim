@@ -12,8 +12,8 @@ import
   # Status internals
   chronicles,
   # Beacon chain internals
-  ../../../beacon_chain/spec/[beaconstate, presets, state_transition_epoch],
-  ../../../beacon_chain/spec/datatypes/[altair, electra],
+  ../../../beacon_chain/spec/[presets, state_transition_epoch],
+  ../../../beacon_chain/spec/datatypes/altair,
   # Test utilities
   ../../testutil,
   ../fixtures_utils, ../os_ops,
@@ -22,6 +22,7 @@ import
 
 from std/sequtils import mapIt, toSeq
 from std/strutils import rsplit
+from ../../../beacon_chain/spec/datatypes/electra import BeaconState
 
 const
   RootDir = SszTestsDir/const_preset/"electra"/"epoch_processing"
@@ -38,8 +39,8 @@ const
   SyncCommitteeDir =             RootDir/"sync_committee_updates"
   RewardsAndPenaltiesDir =       RootDir/"rewards_and_penalties"
   HistoricalSummariesUpdateDir = RootDir/"historical_summaries_update"
-  PendingBalanceDepositsDir =    RootDir/"pending_balance_deposits"
   PendingConsolidationsDir =     RootDir/"pending_consolidations"
+  PendingDepositsDir =           RootDir/"pending_deposits"
 
 doAssert (toHashSet(mapIt(toSeq(walkDir(RootDir, relative = false)), it.path)) -
     toHashSet([SyncCommitteeDir])) ==
@@ -48,7 +49,7 @@ doAssert (toHashSet(mapIt(toSeq(walkDir(RootDir, relative = false)), it.path)) -
     SlashingsDir, Eth1DataResetDir, EffectiveBalanceUpdatesDir,
     SlashingsResetDir, RandaoMixesResetDir, ParticipationFlagDir,
     RewardsAndPenaltiesDir, HistoricalSummariesUpdateDir,
-    PendingBalanceDepositsDir, PendingConsolidationsDir])
+    PendingDepositsDir, PendingConsolidationsDir])
 
 template runSuite(
     suiteDir, testName: string, transitionProc: untyped): untyped =
@@ -142,17 +143,15 @@ runSuite(ParticipationFlagDir, "Participation flag updates"):
   process_participation_flag_updates(state)
   Result[void, cstring].ok()
 
-# Pending balance deposits
+# Pending deposits
 # ---------------------------------------------------------------
-runSuite(PendingBalanceDepositsDir, "Pending balance deposits"):
-  process_pending_balance_deposits(cfg, state, cache)
-  Result[void, cstring].ok()
+runSuite(PendingDepositsDir, "Pending deposits"):
+  process_pending_deposits(cfg, state, cache)
 
 # Pending consolidations
 # ---------------------------------------------------------------
 runSuite(PendingConsolidationsDir, "Pending consolidations"):
   process_pending_consolidations(cfg, state)
-  Result[void, cstring].ok()
 
 # Sync committee updates
 # ---------------------------------------------------------------

@@ -8,7 +8,9 @@
 
 # Helpers and functions pertaining to managing the validator set
 
-import ./helpers
+import
+  std/algorithm,
+  "."/[crypto, helpers]
 export helpers
 
 const
@@ -19,7 +21,7 @@ const
   TOTAL_SIZE = PIVOT_VIEW_SIZE + POSITION_WINDOW_SIZE
 
 # https://github.com/ethereum/consensus-specs/blob/v1.4.0-beta.6/specs/phase0/beacon-chain.md#compute_shuffled_index
-# https://github.com/ethereum/consensus-specs/blob/v1.4.0-beta.6/specs/phase0/beacon-chain.md#compute_committee
+# https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.8/specs/phase0/beacon-chain.md#compute_committee
 # Port of https://github.com/protolambda/zrnt/blob/v0.14.0/eth2/beacon/shuffle.go
 func shuffle_list*(input: var seq[ValidatorIndex], seed: Eth2Digest) =
   let list_size = input.lenu64
@@ -156,7 +158,7 @@ func get_shuffled_active_validator_indices*(
   withState(state):
     cache.get_shuffled_active_validator_indices(forkyState.data, epoch)
 
-# https://github.com/ethereum/consensus-specs/blob/v1.4.0-beta.7/specs/phase0/beacon-chain.md#get_active_validator_indices
+# https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.8/specs/phase0/beacon-chain.md#get_active_validator_indices
 func count_active_validators*(state: ForkyBeaconState,
                               epoch: Epoch,
                               cache: var StateCache): uint64 =
@@ -233,7 +235,7 @@ func compute_committee_len*(
 
   (slice.b - slice.a + 1).uint64
 
-# https://github.com/ethereum/consensus-specs/blob/v1.4.0-beta.6/specs/phase0/beacon-chain.md#get_beacon_committee
+# https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.8/specs/phase0/beacon-chain.md#get_beacon_committee
 iterator get_beacon_committee*(
     state: ForkyBeaconState, slot: Slot, index: CommitteeIndex,
     cache: var StateCache): (int, ValidatorIndex) =
@@ -347,6 +349,7 @@ func compute_inverted_shuffled_index*(
     countdown(SHUFFLE_ROUND_COUNT.uint8 - 1, 0'u8, 1)
 
 # https://github.com/ethereum/consensus-specs/blob/v1.4.0-beta.6/specs/phase0/beacon-chain.md#compute_proposer_index
+# https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.3/specs/electra/beacon-chain.md#updated-compute_proposer_index
 template compute_proposer_index(state: ForkyBeaconState,
     indices: openArray[ValidatorIndex], seed: Eth2Digest,
     unshuffleTransform: untyped): Opt[ValidatorIndex] =
@@ -371,8 +374,13 @@ template compute_proposer_index(state: ForkyBeaconState,
         candidate_index = indices[unshuffleTransform]
         random_byte = (eth2digest(buffer).data)[i mod 32]
         effective_balance = state.validators[candidate_index].effective_balance
+      const max_effective_balance =
+        when typeof(state).kind >= ConsensusFork.Electra:
+          MAX_EFFECTIVE_BALANCE_ELECTRA.Gwei  # [Modified in Electra:EIP7251]
+        else:
+          MAX_EFFECTIVE_BALANCE.Gwei
       if effective_balance * MAX_RANDOM_BYTE >=
-          MAX_EFFECTIVE_BALANCE.Gwei * random_byte:
+          max_effective_balance * random_byte:
         res = Opt.some(candidate_index)
         break
       i += 1
@@ -386,7 +394,7 @@ func compute_proposer_index(state: ForkyBeaconState,
   ## Return from ``indices`` a random index sampled by effective balance.
   compute_proposer_index(state, indices, seed, shuffled_index)
 
-# https://github.com/ethereum/consensus-specs/blob/v1.4.0-beta.6/specs/phase0/beacon-chain.md#get_beacon_proposer_index
+# https://github.com/ethereum/consensus-specs/blob/v1.5.0-alpha.8/specs/phase0/beacon-chain.md#get_beacon_proposer_index
 func get_beacon_proposer_index*(
     state: ForkyBeaconState, cache: var StateCache, slot: Slot):
     Opt[ValidatorIndex] =
@@ -541,3 +549,79 @@ func compute_subscribed_subnet(node_id: UInt256, epoch: Epoch, index: uint64):
 iterator compute_subscribed_subnets*(node_id: UInt256, epoch: Epoch): SubnetId =
   for index in 0'u64 ..< SUBNETS_PER_NODE:
     yield compute_subscribed_subnet(node_id, epoch, index)
+
+iterator get_committee_indices*(bits: AttestationCommitteeBits): CommitteeIndex =
+  for index, b in bits:
+    if b:
+      yield CommitteeIndex.init(uint64(index)).valueOr:
+        break # Too many bits! Shouldn't happen
+
+func get_committee_index_one*(bits: AttestationCommitteeBits): Opt[CommitteeIndex] =
+  var res = Opt.none(CommitteeIndex)
+  for committee_index in get_committee_indices(bits):
+    if res.isSome(): return Opt.none(CommitteeIndex)
+    res = Opt.some(committee_index)
+  res
+
+proc compute_on_chain_aggregate*(
+    network_aggregates: openArray[electra.Attestation]): Opt[electra.Attestation] =
+  let
+    aggregates = network_aggregates.sortedByIt(
+      it.committee_bits.get_committee_index_one().expect("just one"))
+    data = aggregates[0].data
+
+  var
+    agg: AggregateSignature
+    committee_bits: AttestationCommitteeBits
+    prev_committee_index: Opt[CommitteeIndex]
+    totalLen = 0
+  for i, a in aggregates:
+    let committee_index = ? get_committee_index_one(a.committee_bits)
+    if prev_committee_index.isNone:
+      prev_committee_index = Opt.some committee_index
+    elif committee_index.distinctBase <= prev_committee_index.get.distinctBase:
+      continue
+    prev_committee_index = Opt.some committee_index
+
+    totalLen += a.aggregation_bits.len
+
+  prev_committee_index.reset()
+
+  var
+    aggregation_bits = ElectraCommitteeValidatorsBits.init(totalLen)
+    pos = 0
+    filledLen = 0
+  for i, a in aggregates:
+    let
+      committee_index = ? get_committee_index_one(a.committee_bits)
+      first = pos == 0
+
+    if prev_committee_index.isNone:
+      prev_committee_index = Opt.some committee_index
+    elif committee_index.distinctBase <= prev_committee_index.get.distinctBase:
+      continue
+    prev_committee_index = Opt.some committee_index
+
+    for b in a.aggregation_bits:
+      aggregation_bits[pos] = b
+      pos += 1
+    filledLen += a.aggregation_bits.len
+
+    let sig = ? a.signature.load() # Expensive
+    if first:
+      agg = AggregateSignature.init(sig)
+    else:
+      agg.aggregate(sig)
+
+    committee_bits[int(committee_index)] = true
+
+  doAssert totalLen == filledLen
+
+  let signature = agg.finish()
+
+  ok electra.Attestation(
+      aggregation_bits: aggregation_bits,
+      data: data,
+      committee_bits: committee_bits,
+      signature: signature.toValidatorSig(),
+  )

@@ -10,10 +10,12 @@
 import
   chronicles,
   ./mocking/mock_deposits,
-  ../beacon_chain/spec/[
-    forks, state_transition, state_transition_block]
+  ../beacon_chain/spec/[forks, state_transition]
 
-from ".."/beacon_chain/bloomfilter import constructBloomFilter
+from ".."/beacon_chain/validator_bucket_sort import sortValidatorBuckets
+from ".."/beacon_chain/spec/state_transition_epoch import
+  get_validator_balance_after_epoch, get_next_slot_expected_withdrawals,
+  process_epoch
 
 func round_multiple_down(x: Gwei, n: Gwei): Gwei =
   ## Round the input to the previous multiple of "n"
@@ -36,10 +38,14 @@ proc valid_deposit(state: var ForkyHashedBeaconState) =
                       0.Gwei
   doAssert process_deposit(
     defaultRuntimeConfig, state.data,
-    constructBloomFilter(state.data.validators.asSeq)[], deposit, {}).isOk
+    sortValidatorBuckets(state.data.validators.asSeq)[], deposit, {}).isOk
   doAssert state.data.validators.len == pre_val_count + 1
-  doAssert state.data.balances.len == pre_val_count + 1
-  doAssert state.data.balances.item(validator_index) == pre_balance + deposit.data.amount
+  when typeof(state).kind >= ConsensusFork.Electra:
+    doAssert state.data.balances.item(validator_index) == pre_balance
+  else:
+    doAssert state.data.balances.item(validator_index) ==
+      pre_balance + deposit.data.amount
+
   doAssert state.data.validators.item(validator_index).effective_balance ==
     round_multiple_down(
       min(
@@ -73,7 +79,7 @@ proc getTestStates*(
     info = ForkedEpochInfo()
     cfg = defaultRuntimeConfig
 
-  static: doAssert high(ConsensusFork) == ConsensusFork.Electra
+  static: doAssert high(ConsensusFork) == ConsensusFork.Fulu
   if consensusFork >= ConsensusFork.Altair:
     cfg.ALTAIR_FORK_EPOCH = 1.Epoch
   if consensusFork >= ConsensusFork.Bellatrix:
@@ -84,6 +90,8 @@ proc getTestStates*(
     cfg.DENEB_FORK_EPOCH = 4.Epoch
   if consensusFork >= ConsensusFork.Electra:
     cfg.ELECTRA_FORK_EPOCH = 5.Epoch
+  if consensusFork >= ConsensusFork.Fulu:
+    cfg.FULU_FORK_EPOCH = 6.Epoch
 
   for i, epoch in stateEpochs:
     let slot = epoch.Epoch.start_slot
@@ -98,3 +106,21 @@ proc getTestStates*(
 
     if tmpState[].kind == consensusFork:
       result.add assignClone(tmpState[])
+
+from std/sequtils import allIt
+from ".."/beacon_chain/spec/beaconstate import get_expected_withdrawals
+
+proc checkPerValidatorBalanceCalc*(
+    state: deneb.BeaconState | electra.BeaconState |
+           fulu.BeaconState): bool =
+  var
+    info: altair.EpochInfo
+    cache: StateCache
+  let tmpState = newClone(state)  # slow, but tolerable for tests
+  discard process_epoch(defaultRuntimeConfig, tmpState[], {}, cache, info)
+
+  allIt(0 ..< tmpState.balances.len,
+      tmpState.balances.item(it) == get_validator_balance_after_epoch(
+        defaultRuntimeConfig, state, cache, info, it.ValidatorIndex)) and
+    get_expected_withdrawals(tmpState[]) == get_next_slot_expected_withdrawals(
+      defaultRuntimeConfig, state, cache, info)

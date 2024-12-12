@@ -52,14 +52,12 @@ else
 endif
 
 # unconditionally built by the default Make target
-# TODO re-enable ncli_query if/when it works again
 TOOLS_CORE_CUSTOMCOMPILE := \
 	libnimbus_lc.a
 
 TOOLS_CORE := \
 	deposit_contract \
 	resttest \
-	logtrace \
 	mev_mock \
 	ncli \
 	ncli_db \
@@ -93,8 +91,6 @@ TOOLS_CSV := $(subst $(SPACE),$(COMMA),$(TOOLS))
 	deps \
 	update \
 	test \
-	clean_eth2_network_simulation_all \
-	eth2_network_simulation \
 	clean \
 	libbacktrace \
 	book \
@@ -162,7 +158,7 @@ DEPOSITS_DELAY := 0
 #- "--define:release" cannot be added to "config.nims"
 #- disable Nim's default parallelisation because it starts too many processes for too little gain
 #- https://github.com/status-im/nim-libp2p#use-identify-metrics
-NIM_PARAMS := -d:release --parallelBuild:1 -d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,lighthouse,lodestar,prysm,teku $(NIM_PARAMS)
+NIM_PARAMS := -d:release --parallelBuild:1 -d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,lighthouse,lodestar,prysm,teku,grandine $(NIM_PARAMS)
 
 ifeq ($(USE_LIBBACKTRACE), 0)
 NIM_PARAMS += -d:disable_libbacktrace
@@ -238,12 +234,11 @@ local-testnet-minimal:
 		--signer-nodes 1 \
 		--remote-validators-count 512 \
 		--signer-type $(SIGNER_TYPE) \
-		--capella-fork-epoch 0 \
-		--deneb-fork-epoch 2 \
+		--deneb-fork-epoch 0 \
+		--electra-fork-epoch 50 \
 		--stop-at-epoch 6 \
 		--disable-htop \
 		--enable-payload-builder \
-		--enable-logtrace \
 		--base-port $$(( $(MINIMAL_TESTNET_BASE_PORT) + EXECUTOR_NUMBER * 400 + 0 )) \
 		--base-rest-port $$(( $(MINIMAL_TESTNET_BASE_PORT) + EXECUTOR_NUMBER * 400 + 30 )) \
 		--base-metrics-port $$(( $(MINIMAL_TESTNET_BASE_PORT) + EXECUTOR_NUMBER * 400 + 60 )) \
@@ -268,11 +263,10 @@ local-testnet-mainnet:
 	./scripts/launch_local_testnet.sh \
 		--data-dir $@ \
 		--nodes 2 \
-		--capella-fork-epoch 0 \
-		--deneb-fork-epoch 2 \
+		--deneb-fork-epoch 0 \
+		--electra-fork-epoch 50 \
 		--stop-at-epoch 6 \
 		--disable-htop \
-		--enable-logtrace \
 		--base-port $$(( $(MAINNET_TESTNET_BASE_PORT) + EXECUTOR_NUMBER * 400 + 0 )) \
 		--base-rest-port $$(( $(MAINNET_TESTNET_BASE_PORT) + EXECUTOR_NUMBER * 400 + 30 )) \
 		--base-metrics-port $$(( $(MAINNET_TESTNET_BASE_PORT) + EXECUTOR_NUMBER * 400 + 60 )) \
@@ -593,7 +587,7 @@ define MAKE_DEPOSIT
 
 	build/deposit_contract sendDeposits \
 		$(2) \
-		--deposit-contract=$$(cat vendor/eth2-networks/shared/$(1)/deposit_contract.txt) \
+		--deposit-contract=$$(cat vendor/$(1)/metadata/deposit_contract.txt) \
 		--deposits-file=nbc-$(1)-deposits.json \
 		--min-delay=$(DEPOSITS_DELAY) \
 		--max-delay=$(DEPOSITS_DELAY) \
@@ -807,10 +801,10 @@ book:
 	"$(MAKE)" -C docs book
 
 auditors-book:
-	[[ "$$(mdbook --version)" == "mdbook v0.4.35" ]] || { echo "'mdbook v0.4.35' not found in PATH. See 'docs/README.md'. Aborting."; exit 1; }
+	[[ "$$(mdbook --version)" == "mdbook v0.4.36" ]] || { echo "'mdbook v0.4.35' not found in PATH. See 'docs/README.md'. Aborting."; exit 1; }
 	[[ "$$(mdbook-toc --version)" == "mdbook-toc 0.14.1" ]] || { echo "'mdbook-toc 0.14.1' not found in PATH. See 'docs/README.md'. Aborting."; exit 1; }
 	[[ "$$(mdbook-open-on-gh --version)" == "mdbook-open-on-gh 2.4.1" ]] || { echo "'mdbook-open-on-gh 2.4.1' not found in PATH. See 'docs/README.md'. Aborting."; exit 1; }
-	[[ "$$(mdbook-admonish --version)" == "mdbook-admonish 1.13.1" ]] || { echo "'mdbook-open-on-gh 1.13.1' not found in PATH. See 'docs/README.md'. Aborting."; exit 1; }
+	[[ "$$(mdbook-admonish --version)" == "mdbook-admonish 1.14.0" ]] || { echo "'mdbook-open-on-gh 1.13.1' not found in PATH. See 'docs/README.md'. Aborting."; exit 1; }
 	cd docs/the_auditors_handbook && \
 	mdbook build
 
